@@ -73,7 +73,10 @@ jobs:
         if: steps.check.outputs.should_release == 'true'
         run: |
           sleep 15  # give TestPyPI time to index
-          uv pip install --index https://test.pypi.org/simple/ himmel==${{ steps.cz.outputs.version }}
+          uv pip install \
+            --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            himmel==${{ steps.cz.outputs.version }}
           python -c "import himmel, sys; print('TestPyPI install works on', sys.version_info)"
 
       - name: Create GitHub Release
