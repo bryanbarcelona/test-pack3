@@ -72,15 +72,9 @@ invalid-return-type = "error"
 [tool.pip-audit]
 exclude = ["himmel"]
 
+
 [tool.commitizen]
-name = "cz_conventional_commits"
-version = "0.1.0"
-version_provider = "pep621"  #  This is the correct provider for pyproject.toml
-version_scheme = "semver"
-tag_format = "v$version"
-update_changelog_on_bump = true
-major_version_zero = true
-encoding = "utf-8"
+version_provider = "uv"
 
 
 [[tool.uv.index]]

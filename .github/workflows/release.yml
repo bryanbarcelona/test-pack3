@@ -42,21 +42,15 @@ jobs:
             echo "should_release=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Bump version + changelog
-        if: steps.check.outputs.should_release == 'true'
+      - name: Bump version and changelog
         id: cz
-        run: |
-          NEW_VERSION=$(uvx cz bump --dry-run --retry | grep -oP 'bump:.*to \K\d+\.\d+\.\d+')
-          echo "Bumping to v$NEW_VERSION"
-          uvx cz bump --yes
+        uses: commitizen-tools/commitizen-action@v2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          push: true
+          commit: true
+          changelog: true
 
-          TAG="v$NEW_VERSION"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git push origin main --follow-tags
 
       - name: Build
         if: steps.check.outputs.should_release == 'true'
