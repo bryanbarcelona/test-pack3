@@ -43,9 +43,9 @@ jobs:
         if: steps.check.outputs.should_release == 'true'
         id: cz
         run: |
-          NEW_VERSION=$(cz bump --dry-run --retry | grep -oP 'bump:.*to \K\d+\.\d+\.\d+')
+          NEW_VERSION=$(uvx cz bump --dry-run --retry | grep -oP 'bump:.*to \K\d+\.\d+\.\d+')
           echo "Bumping to v$NEW_VERSION"
-          cz bump --yes
+          uvx cz bump --yes
 
           TAG="v$NEW_VERSION"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
