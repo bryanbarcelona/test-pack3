@@ -2,76 +2,32 @@ name: Publish Release
 
 on:
   push:
-    branches: [main]
+    tags: ['v*']  # ← TRIGGERED BY TAGS LIKE v1.0.0, v0.6.0, etc.
 
 permissions:
-  contents: write      # for commit + tag push
-  id-token: write      # trusted publishing (PyPI + TestPyPI)
+  contents: write      # for GitHub Release
+  id-token: write      # for trusted publishing to PyPI/TestPyPI
 
 jobs:
-  tests:
-    uses: ./.github/workflows/ci.yml
-
-  publish:
-    needs: tests
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
 
       - uses: astral-sh/setup-uv@v3
 
-      - name: Install tools
-        run: uv sync --all-extras --dev --frozen
-
-      - name: Install Commitizen tool
-        run: uv tool install commitizen
-
-      # Skip if no new commits since last tag
-      - name: Check for new commits
-        id: check
+      - name: Install dependencies and build
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ] || [ "$(git rev-list $LAST_TAG..HEAD --count)" -gt 0 ]; then
-            echo "should_release=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_release=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Ensure initial tag exists
-        if: steps.check.outputs.should_release == 'true'
-        run: |
-          if [ -z "$(git tag --list)" ]; then
-            echo "No tags found. Creating initial tag from pyproject.toml version."
-            INITIAL_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-            git tag "v$INITIAL_VERSION"
-            git push origin "v$INITIAL_VERSION"
-          fi
-
-      - name: Bump version and changelog
-        id: cz
-        uses: commitizen-tools/commitizen-action@0.26.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          commit: true
-          push: true
-          changelog: true
-
-      - name: Build
-        if: steps.check.outputs.should_release == 'true'
-        run: uv build
+          uv sync --all-extras --dev --frozen
+          uv build
 
       - name: Publish to TestPyPI
-        if: steps.check.outputs.should_release == 'true'
         run: uv publish --index testpypi
 
       - name: Create GitHub Release
-        if: steps.check.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.cz.outputs.tag }}
           generate_release_notes: true
