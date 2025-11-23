@@ -44,13 +44,12 @@ jobs:
 
       - name: Bump version and changelog
         id: cz
-        uses: commitizen-tools/commitizen-action@v2
+        uses: commitizen-tools/commitizen-action@0.26.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          push: true
           commit: true
+          push: true
           changelog: true
-
 
       - name: Build
         if: steps.check.outputs.should_release == 'true'
