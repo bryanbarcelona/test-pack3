@@ -1,0 +1,73 @@
+name: Publish Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write      # for commit + tag push
+  id-token: write      # trusted publishing (PyPI + TestPyPI)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install tools
+        run: uv sync --all-extras --dev --frozen
+
+      # Skip if no new commits since last tag
+      - name: Check for new commits
+        id: check
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ] || [ "$(git rev-list $LAST_TAG..HEAD --count)" -gt 0 ]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump version + changelog
+        if: steps.check.outputs.should_release == 'true'
+        id: cz
+        run: |
+          NEW_VERSION=$(cz bump --dry-run --retry | grep -oP 'bump:.*to \K\d+\.\d+\.\d+')
+          echo "Bumping to v$NEW_VERSION"
+          cz bump --yes
+
+          TAG="v$NEW_VERSION"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git push origin main --follow-tags
+
+      - name: Build
+        if: steps.check.outputs.should_release == 'true'
+        run: uv build
+
+      - name: Publish to TestPyPI
+        if: steps.check.outputs.should_release == 'true'
+        run: uv publish --index testpypi
+
+      - name: Smoke test from TestPyPI
+        if: steps.check.outputs.should_release == 'true'
+        run: |
+          sleep 15  # give TestPyPI time to index
+          uvx --from https://test.pypi.org/simple himmel==${{ steps.cz.outputs.version }} python -c "import himmel, sys; print('TestPyPI install works on', sys.version_info)"
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.cz.outputs.tag }}
+          generate_release_notes: true

@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**", "fix/**", "chore/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          key: uv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-py${{ matrix.python-version }}-
+            uv-${{ runner.os }}-
+          path: ~/.cache/uv
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev --frozen
+          # Install test-only deps separately
+          uv add --dev pytest-cov
+
+      - name: Lint & format
+        run: uvx ruff check . && uvx ruff format . --check
+
+      - name: Type check
+        run: uvx ty check .
+
+      - name: Test + coverage
+        run: uvx pytest --cov=himmel --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
