@@ -28,6 +28,9 @@ jobs:
       - name: Install tools
         run: uv sync --all-extras --dev --frozen
 
+      - name: Install Commitizen tool
+        run: uv tool install commitizen
+
       # Skip if no new commits since last tag
       - name: Check for new commits
         id: check
