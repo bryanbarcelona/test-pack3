@@ -75,6 +75,7 @@ exclude = ["himmel"]
 
 [tool.commitizen]
 version_provider = "uv"
+tag_format = "v${version}"
 
 
 [[tool.uv.index]]
