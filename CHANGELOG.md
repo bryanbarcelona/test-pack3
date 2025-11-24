@@ -4,6 +4,12 @@
 
 - test reusable workflow integration once again and again and again and again and fucking again FUCK
 
+## v0.8.0 (2025-11-24)
+
+### Feat
+
+- GODDDAMIT FUCK
+
 ## v0.7.0 (2025-11-23)
 
 ### Feat
