@@ -34,7 +34,9 @@ jobs:
         id: cz
         uses: commitizen-tools/commitizen-action@0.26.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.PAT }}
+          git_name: "bryanbarcelona"
+          git_email: "bryan.barcelona@gmail.com"
           push: true
           changelog: true
 
