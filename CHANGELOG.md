@@ -4,6 +4,12 @@
 
 - test reusable workflow integration once again and again and again and again and fucking again FUCK
 
+## v0.9.0 (2025-11-24)
+
+### Feat
+
+- SHITHEAD
+
 ## v0.8.0 (2025-11-24)
 
 ### Feat
