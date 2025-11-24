@@ -5,8 +5,8 @@ on:
     branches: [main]
 
 permissions:
-  contents: write      # for commit + tag push
-  id-token: write      # trusted publishing (PyPI + TestPyPI)
+  contents: write      # needed for tagging + releasing
+  id-token: write      # for trusted publishing to PyPI later
 
 jobs:
   tests:
@@ -15,63 +15,59 @@ jobs:
   publish:
     needs: tests
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    outputs:
+      new_tag: ${{ steps.cz.outputs.tag }}
+      bumped: ${{ steps.cz.outputs.bumped || steps.cz.outputs.version }}  # ← important fallback
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}   # needed so commitizen can push
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-
+      - uses: actions/setup-python@v5
       - uses: astral-sh/setup-uv@v3
 
-      - name: Install tools
-        run: uv sync --all-extras --dev --frozen
+      - run: uv sync --all-extras --dev --frozen
+      - run: uv tool install commitizen
 
-      - name: Install Commitizen tool
-        run: uv tool install commitizen
-
-      # Skip if no new commits since last tag
-      - name: Check for new commits
-        id: check
-        run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ] || [ "$(git rev-list $LAST_TAG..HEAD --count)" -gt 0 ]; then
-            echo "should_release=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_release=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Ensure initial tag exists
-        if: steps.check.outputs.should_release == 'true'
-        run: |
-          if [ -z "$(git tag --list)" ]; then
-            echo "No tags found. Creating initial tag from pyproject.toml version."
-            INITIAL_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-            git tag "v$INITIAL_VERSION"
-            git push origin "v$INITIAL_VERSION"
-          fi
-
-      - name: Bump version and changelog
+      - name: Bump version, changelog & tag
         id: cz
         uses: commitizen-tools/commitizen-action@0.26.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          commit: true
           push: true
           changelog: true
 
-      - name: Build
-        if: steps.check.outputs.should_release == 'true'
-        run: uv build
+      - name: Build & publish to TestPyPI
+        if: steps.cz.outputs.bumped == 'true' || steps.cz.outputs.version != ''
+        run: |
+          uv build
+          uv publish --index testpypi   # remove --index when you go to real PyPI
 
-      - name: Publish to TestPyPI
-        if: steps.check.outputs.should_release == 'true'
-        run: uv publish --index testpypi
+  # ──────────────────────────────────────────────────────────────
+  # This job runs ONLY when a new tag was created → no loops, no duplicates
+  # ──────────────────────────────────────────────────────────────
+  release:
+    needs: publish
+    if: ${{ needs.publish.outputs.bumped == 'true' && needs.publish.outputs.new_tag != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.new_tag }}   # checkout the exact tag
+
+      - uses: astral-sh/setup-uv@v3
+      - run: uv build   # rebuilds the exact same artifacts that were published
 
       - name: Create GitHub Release
-        if: steps.check.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.cz.outputs.tag }}
+          tag_name: ${{ needs.publish.outputs.new_tag }}
           generate_release_notes: true
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
