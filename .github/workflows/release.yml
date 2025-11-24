@@ -18,7 +18,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     outputs:
       new_tag: ${{ steps.cz.outputs.tag }}
-      bumped: ${{ steps.cz.outputs.bumped || steps.cz.outputs.version }}
+      bumped: ${{ steps.cz.outputs.bumped == 'true' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,7 +50,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────
   release:
     needs: publish
-    if: ${{ needs.publish.outputs.bumped == 'true' && needs.publish.outputs.new_tag != '' }}
+    if: ${{ needs.publish.outputs.bumped == true && needs.publish.outputs.new_tag != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
