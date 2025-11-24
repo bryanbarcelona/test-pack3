@@ -4,6 +4,12 @@
 
 - test reusable workflow integration once again and again and again and again and fucking again FUCK
 
+## v1.0.0 (2025-11-24)
+
+### Refactor
+
+- GAGAGAsda
+
 ## v0.15.1 (2025-11-24)
 
 ### Fix
