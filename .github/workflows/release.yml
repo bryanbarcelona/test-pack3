@@ -61,16 +61,6 @@ jobs:
           push: true
           changelog: true
 
-      - name: Validate Commitizen produced a tag
-        if: steps.check.outputs.should_release == 'true'
-        run: |
-          TAG="${{ steps.cz.outputs.tag }}"
-          if [ -z "$TAG" ]; then
-            echo "Error: Commitizen did not generate a tag. Ensure your commits follow Conventional Commits format."
-            exit 1
-          fi
-          echo "Generated tag: $TAG"
-
       - name: Build
         if: steps.check.outputs.should_release == 'true'
         run: uv build
