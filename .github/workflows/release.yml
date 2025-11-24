@@ -18,7 +18,6 @@ jobs:
     if: github.ref == 'refs/heads/main'
     outputs:
       new_tag: ${{ steps.cz.outputs.tag }}
-      bumped: ${{ steps.cz.outputs.bumped || steps.cz.outputs.version }}  # ← important fallback
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,7 +39,7 @@ jobs:
           changelog: true
 
       - name: Build & publish to TestPyPI
-        if: steps.cz.outputs.bumped == 'true' || steps.cz.outputs.version != ''
+        if: steps.cz.outputs.tag != ''
         run: |
           uv build
           uv publish --index testpypi   # remove --index when you go to real PyPI
@@ -50,7 +49,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────
   release:
     needs: publish
-    if: ${{ needs.publish.outputs.bumped == 'true' && needs.publish.outputs.new_tag != '' }}
+    if: ${{ needs.publish.outputs.new_tag != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
