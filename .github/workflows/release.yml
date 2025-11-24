@@ -5,8 +5,8 @@ on:
     branches: [main]
 
 permissions:
-  contents: write      # needed for tagging + releasing
-  id-token: write      # for trusted publishing to PyPI later
+  contents: write
+  id-token: write
 
 jobs:
   tests:
@@ -17,13 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     outputs:
-      new_tag: ${{ steps.cz.outputs.tag }}
-      bumped: ${{ steps.cz.outputs.bumped == 'true' }}
+      version: ${{ steps.cz.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}   # needed so commitizen can push
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@v5
       - uses: astral-sh/setup-uv@v3
@@ -39,35 +38,62 @@ jobs:
           push: true
           changelog: true
 
-      - name: Build & publish to TestPyPI
-        if: steps.cz.outputs.bumped == 'true' || steps.cz.outputs.version != ''
+      - name: Debug - Show commitizen outputs
         run: |
-          uv build
-          uv publish --index testpypi   # remove --index when you go to real PyPI
+          echo "::notice::Commitizen version output: '${{ steps.cz.outputs.version }}'"
+          echo "::notice::REVISION env var: '${{ env.REVISION }}'"
+          echo "Version bumped: ${{ steps.cz.outputs.version != '' }}"
 
-  # ──────────────────────────────────────────────────────────────
-  # This job runs ONLY when a new tag was created → no loops, no duplicates
-  # ──────────────────────────────────────────────────────────────
+      - name: Build & publish to TestPyPI
+        if: steps.cz.outputs.version != ''
+        run: |
+          echo "::notice::Building and publishing version ${{ steps.cz.outputs.version }}"
+          uv build
+          uv publish --index testpypi
+
+      - name: Debug - No version bump
+        if: steps.cz.outputs.version == ''
+        run: echo "::warning::No version bump detected - skipping build/publish"
+
   release:
     needs: publish
-    if: ${{ needs.publish.outputs.bumped == true && needs.publish.outputs.new_tag != '' }}
+    if: ${{ needs.publish.outputs.version != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
+      - name: Debug - Show inherited outputs
+        run: |
+          echo "::notice::Version from publish job: '${{ needs.publish.outputs.version }}'"
+          echo "::notice::Will create release for tag: v${{ needs.publish.outputs.version }}"
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.publish.outputs.new_tag }}   # checkout the exact tag
+          ref: v${{ needs.publish.outputs.version }}
+
+      - name: Debug - Verify checkout
+        run: |
+          echo "::notice::Checked out ref: $(git describe --tags --always)"
+          echo "::notice::Current commit: $(git rev-parse HEAD)"
 
       - uses: astral-sh/setup-uv@v3
-      - run: uv build   # rebuilds the exact same artifacts that were published
+      - run: uv build
+
+      - name: Debug - List artifacts
+        run: |
+          echo "::notice::Built artifacts:"
+          ls -lh dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.publish.outputs.new_tag }}
+          tag_name: v${{ needs.publish.outputs.version }}
           generate_release_notes: true
           files: |
             dist/*.whl
             dist/*.tar.gz
+
+      - name: Debug - Release created
+        if: success()
+        run: echo "::notice::✅ Release v${{ needs.publish.outputs.version }} created successfully"
