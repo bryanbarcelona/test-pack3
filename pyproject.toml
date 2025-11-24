@@ -1,6 +1,6 @@
 [project]
 name = "himmel"
-version = "0.15.0"
+version = "0.15.1"
 #license = "GPL-3.0-or-later"
 license = "MIT"
 description = "Add your description here"
