@@ -2,32 +2,86 @@ name: Publish Release
 
 on:
   push:
-    tags: ['v*']  # ← TRIGGERED BY TAGS LIKE v1.0.0, v0.6.0, etc.
+    branches: [main]
 
 permissions:
-  contents: write      # for GitHub Release
-  id-token: write      # for trusted publishing to PyPI/TestPyPI
+  contents: write      # for commit + tag push
+  id-token: write      # trusted publishing (PyPI + TestPyPI)
 
 jobs:
-  release:
+  tests:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
 
       - uses: astral-sh/setup-uv@v3
 
-      - name: Install dependencies and build
+      - name: Install tools
+        run: uv sync --all-extras --dev --frozen
+
+      - name: Install Commitizen tool
+        run: uv tool install commitizen
+
+      # Skip if no new commits since last tag
+      - name: Check for new commits
+        id: check
         run: |
-          uv sync --all-extras --dev --frozen
-          uv build
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ] || [ "$(git rev-list $LAST_TAG..HEAD --count)" -gt 0 ]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Ensure initial tag exists
+        if: steps.check.outputs.should_release == 'true'
+        run: |
+          if [ -z "$(git tag --list)" ]; then
+            echo "No tags found. Creating initial tag from pyproject.toml version."
+            INITIAL_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+            git tag "v$INITIAL_VERSION"
+            git push origin "v$INITIAL_VERSION"
+          fi
+
+      - name: Bump version and changelog
+        id: cz
+        uses: commitizen-tools/commitizen-action@0.26.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          commit: true
+          push: true
+          changelog: true
+
+      - name: Validate Commitizen produced a tag
+        if: steps.check.outputs.should_release == 'true'
+        run: |
+          TAG="${{ steps.cz.outputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "Error: Commitizen did not generate a tag. Ensure your commits follow Conventional Commits format."
+            exit 1
+          fi
+          echo "Generated tag: $TAG"
+
+      - name: Build
+        if: steps.check.outputs.should_release == 'true'
+        run: uv build
 
       - name: Publish to TestPyPI
+        if: steps.check.outputs.should_release == 'true'
         run: uv publish --index testpypi
 
       - name: Create GitHub Release
+        if: steps.check.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.cz.outputs.tag }}
           generate_release_notes: true
