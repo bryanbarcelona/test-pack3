@@ -4,6 +4,12 @@
 
 - test reusable workflow integration once again and again and again and again and fucking again FUCK
 
+## v1.1.1 (2025-11-24)
+
+### Refactor
+
+- PATSECRET
+
 ## v1.1.0 (2025-11-24)
 
 ### Feat
